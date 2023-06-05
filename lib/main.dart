@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pocswalekhan/hide_and_seek.dart';
 import 'package:provider/provider.dart';
 import 'home.dart';
 import 'imgprovider.dart';
@@ -24,7 +25,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
       ),
-      home: const HomePage(),
+      home: const HideAndSeek(),
     );
   }
 }

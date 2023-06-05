@@ -1,126 +1,222 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:pocswalekhan/imgprovider.dart';
-import 'package:provider/provider.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/services.dart';
 import 'package:wave/config.dart';
 import 'package:wave/wave.dart';
+import 'package:audioplayers/audioplayers.dart';
+// import 'package:words_wave/constants.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({Key? key}) : super(key: key);
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage>
-    with RestorationMixin, TickerProviderStateMixin, WidgetsBindingObserver {
-  final RestorableBool _dialogValue = RestorableBool(false);
-  @override
-  // TODO: implement restorationId
-  String? get restorationId => 'dialog';
-
-  @override
-  void restoreState(RestorationBucket? oldBucket, bool initialRestore) {
-    // TODO: implement restoreState
-    registerForRestoration(_dialogValue, 'dialog_value');
-  }
-
-  final TextEditingController myController = TextEditingController();
-  late AnimationController myAnimationController =
+    with TickerProviderStateMixin, WidgetsBindingObserver {
+  late AppLifecycleState appLifecycle;
+  final player1 = AudioPlayer();
+  final player2 = AudioPlayer();
+  final player3 = AudioPlayer();
+  final player4 = AudioPlayer();
+  final TextEditingController _controller = TextEditingController();
+  late AnimationController _animationController =
       AnimationController(vsync: this);
-  bool isShowing = false;
+  late Animation _animation;
+  final ValueNotifier<int> char = ValueNotifier<int>(97);
+  late Timer _timer;
+  bool isCharMatched = false;
 
-  void dialog(BuildContext context) {
-    if (!isShowing) {
-      isShowing = true;
-      player.stop();
-      debugPrint(isShowing.toString());
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          Future.delayed(
-            const Duration(
-              seconds: 2,
-            ),
-            () {
-              Navigator.of(context).pop();
-              isShowing = false;
-              debugPrint(isShowing.toString());
-            },
-          );
-          return SimpleDialog(
-            children: [
-              Image.asset('assets/right.png'),
-            ],
-          );
-        },
-      );
+  didChangeAppLifecycleState(AppLifecycleState state) {
+    appLifecycle = state;
+
+    if (state == AppLifecycleState.paused) {
+      print('My app is in background');
+      player1.pause();
+      player2.pause();
+      player3.pause();
+      player4.pause();
     }
   }
-
-  AudioPlayer player = AudioPlayer();
 
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    player1.play(DeviceFileSource('Constants.defaultSound'));
+    setAudio();
+    animationPlay();
+    debugPrint(_animation.value.toString());
+    player1.play(DeviceFileSource('Constants.defaultSound'));
+    _animationController.forward();
+    startTimer();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _animationController.dispose();
+    _controller.dispose();
+    player1.dispose();
+    player2.dispose();
+    player3.dispose();
+    player4.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    var size = MediaQuery.of(context).size;
+    Size size = MediaQuery.of(context).size;
     return Scaffold(
-      appBar: AppBar(
-        title: const Center(child: Text('Swalekhan POC')),
-      ),
-      body: Consumer<ImgProvider>(
-        builder: (context, value, child) {
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              //letter to be drowned
-              SizedBox(
-                width: size.width,
-                height: size.height * 0.9,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          SizedBox(
+            height: size.height * 0.9,
+            width: size.width,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ValueListenableBuilder(
+                valueListenable: char,
+                builder: (BuildContext context, value, Widget? child) {
+                  return AnimatedBuilder(
+                    animation: _animationController,
+                    builder: (BuildContext context, Widget? child) {
+                      return Transform.translate(
+                        offset:
+                            Offset(0, _animation.value * (size.height - 75)),
+                        child: Text(
+                          String.fromCharCode(char.value),
+                          style: const TextStyle(fontSize: 30),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
-              //Wave
-              WaveWidget(
-                config: CustomConfig(
-                  colors: [
-                    Colors.blue.withOpacity(1),
-                  ],
-                  durations: [4000],
-                  heightPercentages: [0.7],
-                  blur: const MaskFilter.blur(BlurStyle.solid, 5),
-                ),
-                waveAmplitude: 10,
-                waveFrequency: 1,
-                backgroundColor: Colors.white,
-                size: const Size(
-                  double.infinity,
-                  double.infinity,
-                ),
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: WaveWidget(
+              config: CustomConfig(
+                colors: [
+                  Colors.blue,
+                ],
+                durations: [4000],
+                heightPercentages: [0.1],
               ),
-
-              //Text Box
-              const Positioned(
-                top: 100,
-                right: 20,
-                child: SizedBox(
-                  height: 50,
-                  width: 200,
-                  child: TextField(
-                    decoration: InputDecoration(
-                      labelText: 'Game Answer',
-                      border: OutlineInputBorder(),
-                    ),
+              waveAmplitude: 0,
+              waveFrequency: 2,
+              size: const Size(
+                double.infinity,
+                100,
+              ),
+            ),
+          ),
+          Positioned(
+            top: 100,
+            right: 20,
+            child: Container(
+                width: 200,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.black12,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: TextField(
+                  textAlign: TextAlign.center,
+                  controller: _controller,
+                  enabled: true,
+                  showCursor: true,
+                  onSubmitted: (value) async {
+                    if (value == String.fromCharCode(char.value)) {
+                      player1.stop();
+                      _animationController.stop();
+                      player3.play(DeviceFileSource('Constants.charMatching'));
+                      await Future.delayed(const Duration(seconds: 3), () {
+                        player3.stop();
+                        _timer.cancel();
+                        _animationController.reset();
+                        char.value = char.value + 1;
+                        player1
+                            .play(DeviceFileSource('Constants.defaultSound'));
+                        animationPlay();
+                        _animationController.forward();
+                        startTimer();
+                        isCharMatched = true;
+                      });
+                    } else {
+                      player1.stop();
+                      _animationController.stop();
+                      player4
+                          .play(DeviceFileSource('Constants.charnotMatching'));
+                      await Future.delayed(const Duration(seconds: 3), () {
+                        player4.stop();
+                        _timer.cancel();
+                        _animationController.reset();
+                        char.value = char.value + 1;
+                        player1
+                            .play(DeviceFileSource('Constants.defaultSound'));
+                        animationPlay();
+                        _animationController.forward();
+                        startTimer();
+                        isCharMatched = true;
+                      });
+                    }
+                    _controller.clear();
+                  },
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    hintText: 'Enter Answer',
                   ),
-                ),
-              ),
-            ],
-          );
-        },
+                )),
+          ),
+        ],
       ),
     );
+  }
+
+  startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+      _animationController.dispose();
+      if (isCharMatched) {
+        player1.play(DeviceFileSource('Constants.defaultSound'));
+        setAudio();
+        isCharMatched = false;
+      }
+      char.value = (char.value + 1);
+      if (char.value > 122) {
+        char.value = 97;
+      }
+      animationPlay();
+      await player1.play(DeviceFileSource('Constants.defaultSound'));
+      _animationController.forward();
+    });
+  }
+
+  animationPlay() {
+    _animationController =
+        AnimationController(vsync: this, duration: const Duration(seconds: 6));
+    _animation = Tween<double>(begin: 0, end: 1).animate(_animationController)
+      ..addStatusListener((status) async {
+        if (status == AnimationStatus.completed) {
+          await player1.stop();
+          await player2.play(DeviceFileSource('Constants.aphabetFalling'));
+        }
+        Timer(const Duration(seconds: 3), () async {
+          await player2.stop();
+        });
+      });
+  }
+
+  Future setAudio() async {
+    player1.setReleaseMode(ReleaseMode.loop);
+    await player1.play(DeviceFileSource('Constants.defaultSound'));
   }
 }
